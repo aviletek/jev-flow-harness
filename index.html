@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jev Flow Harness</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.css">
+<style>
+  :root{
+    --bg:#f6f5f2; --panel:#ffffff; --panel2:#faf9f7; --text:#1b1b1b; --muted:#6b6b6b;
+    --border:#e4e1db; --accent:#3a6df0; --ok:#1f9d55; --warn:#d99400; --bad:#d64545;
+    --wire:#b8b4ac; --code:#f2f0ec; --run:#ffd873;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#121316; --panel:#1b1d21; --panel2:#23262c; --text:#e9e9ea; --muted:#9aa0a8;
+    --border:#2c2f36; --accent:#5b8cff; --ok:#37c26e; --warn:#e0a93b; --bad:#f2685f;
+    --wire:#4a4e57; --code:#15171b; --run:#6a5a1f;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#121316; --panel:#1b1d21; --panel2:#23262c; --text:#e9e9ea; --muted:#9aa0a8;
+    --border:#2c2f36; --accent:#5b8cff; --ok:#37c26e; --warn:#e0a93b; --bad:#f2685f;
+    --wire:#4a4e57; --code:#15171b; --run:#6a5a1f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+  .top{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .top h1{font-size:1.05em;margin:0 0 8px;font-weight:700}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .row:last-child{margin-bottom:0}
+  label.k{font-size:.7em;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  input.key{flex:1;min-width:160px;max-width:340px;padding:6px 9px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:ui-monospace,Consolas,monospace;font-size:12px;outline:none}
+  input.key:focus{border-color:var(--accent)}
+  button.b{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 12px;font-size:.85em;cursor:pointer}
+  button.b:hover{border-color:var(--accent)}
+  button.add{background:var(--panel2);border:1px dashed var(--border);color:var(--muted);border-radius:999px;padding:5px 12px;font-size:.8em;cursor:pointer}
+  button.add:hover{color:var(--text);border-color:var(--accent)}
+  button.run{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 20px;font-size:.9em;font-weight:700;cursor:pointer}
+  button.run:disabled{opacity:.5;cursor:default}
+  select.sel{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:.85em}
+  .hint{color:var(--muted);font-size:.74em}
+  .stage{display:flex;height:560px}
+  #drawflow{flex:1;position:relative;background:var(--bg);background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:22px 22px}
+  #log{width:320px;flex:none;border-left:1px solid var(--border);background:var(--panel);padding:10px 12px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;line-height:1.6;white-space:pre-wrap;color:var(--text)}
+  #log .l-hd{font-family:-apple-system,Segoe UI,sans-serif;font-weight:700;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+  #log .li{border-bottom:1px solid var(--border);padding:2px 0}
+  #log .li-head{margin-top:10px;padding:6px 8px;border-top:none;border-radius:6px;background:var(--accent);color:#fff;font-weight:700;font-family:-apple-system,Segoe UI,sans-serif;font-size:12px;letter-spacing:.02em}
+  #log .li-pass{color:var(--ok);font-weight:700}
+  #log .li-fail{color:var(--bad);font-weight:700}
+  /* node styling */
+  .drawflow .drawflow-node{background:transparent;border:none;padding:0;width:236px;box-shadow:none}
+  .drawflow .drawflow-node.selected .jn{outline:2px solid var(--accent)}
+  .drawflow .drawflow-node.running .jn{outline:2px solid var(--warn);box-shadow:0 0 0 4px color-mix(in srgb,var(--warn) 25%,transparent)}
+  .drawflow .connection .main-path{stroke:var(--wire);stroke-width:2px}
+  .drawflow .drawflow-node .input,.drawflow .drawflow-node .output{background:var(--panel);border:2px solid var(--wire)}
+  .drawflow .drawflow-node .output:hover,.drawflow .drawflow-node .input:hover{border-color:var(--accent)}
+  .jn{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px}
+  .jn-h{font-weight:700;font-size:12.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .jn-start .jn-h{color:var(--muted)} .jn-llm .jn-h{color:var(--accent)}
+  .jn-jev .jn-h{color:#8a63d2} .jn-gate .jn-h{color:var(--warn)} .jn-result .jn-h{color:var(--ok)}
+  .jn label{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:6px 0 2px}
+  .jn textarea,.jn input,.jn select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:5px;font-size:11.5px;padding:4px 6px;outline:none;font-family:inherit}
+  .jn textarea{resize:vertical;min-height:34px;font-family:ui-monospace,Consolas,monospace}
+  .jn textarea:focus,.jn input:focus,.jn select:focus{border-color:var(--accent)}
+  .jn .prt{font-size:9.5px;color:var(--muted);margin-top:5px}
+  .jn .jn-res{margin-top:7px;background:var(--code);border-radius:5px;padding:5px 7px;font-family:ui-monospace,Consolas,monospace;font-size:10.5px;max-height:96px;overflow:auto;white-space:pre-wrap;color:var(--text);min-height:16px}
+  .jn-res:empty{display:none}
+  .jn .jn-legend{margin:4px 0 2px;background:var(--code);border-radius:5px;padding:4px 7px;font-family:ui-monospace,Consolas,monospace;font-size:10px;white-space:pre-wrap;color:var(--muted)}
+  .jn-legend:empty{display:none}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Jev flow harness <span class="hint" style="font-weight:400">— drag blocks, wire LLM → Jev, gate on a threshold, loop until it passes. Local only; no firmware.</span></h1>
+  <div class="row">
+    <label class="k">LLM key</label><input class="key" id="llmkey" type="password" placeholder="OpenAI or Gemini key" autocomplete="off" spellcheck="false">
+    <label class="k">Jev key</label><input class="key" id="jevkey" type="password" placeholder="TypeSafe key (tsk_...)" autocomplete="off" spellcheck="false">
+    <button class="b" id="savekeys">Save keys</button>
+    <button class="b" id="theme">◐ Theme</button>
+  </div>
+  <div class="row">
+    <span class="hint" style="font-weight:700">Add:</span>
+    <button class="add" data-add="Start">Start</button>
+    <button class="add" data-add="LLM">LLM query</button>
+    <button class="add" data-add="Choice">Jev choice</button>
+    <button class="add" data-add="Score">Jev score</button>
+    <button class="add" data-add="Noul">Jev noul</button>
+    <button class="add" data-add="Gate">Gate</button>
+    <button class="add" data-add="Result">Result</button>
+    <span style="width:10px"></span>
+    <select class="sel" id="preset">
+      <option value="">Load preset…</option>
+      <option value="refine">Refine loop (score-gated)</option>
+      <option value="refine-multi">Refine loop (multi-dimension)</option>
+      <option value="guardrail">Guardrail check</option>
+      <option value="replay">Replay match</option>
+      <option value="intent">Intent routing</option>
+      <option value="curation">KB curation</option>
+    </select>
+    <span style="flex:1"></span>
+    <button class="b" id="save">Save graph</button>
+    <button class="b" id="load">Load graph</button>
+    <button class="b" id="clear">Clear</button>
+    <button class="b" id="togglelog">Hide log</button>
+    <label class="hint" style="display:flex;align-items:center;gap:5px;font-weight:700;margin:0 4px" title="Run one iteration per click; the button becomes Continue between iterations"><input type="checkbox" id="stepmode" style="width:auto;margin:0"> Step</label>
+    <button class="run" id="run">▶ Run</button>
+  </div>
+</div>
+<div class="stage">
+  <div id="drawflow"></div>
+  <div id="log"><div class="l-hd">Run log</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.js"></script>
+<script>
+const editor = new Drawflow(document.getElementById('drawflow'));
+editor.reroute = true;
+editor.start();
+
+// ── node templates (df-* fields two-way bind to node.data) ──────────────
+const T = {
+  Start: `<div class="jn jn-start"><div class="jn-h">▶ Start</div>
+    <label>Query / initial state</label><textarea df-query rows="3"></textarea>
+    <div class="prt">out → feeds the next block</div></div>`,
+  LLM: `<div class="jn jn-llm"><div class="jn-h">LLM query</div>
+    <label>Provider</label><select df-provider><option value="openai">OpenAI</option><option value="gemini">Gemini</option></select>
+    <label>Model</label><input df-model>
+    <label>Temperature</label><input df-temp>
+    <label>System (optional)</label><textarea df-system rows="2"></textarea>
+    <div class="prt">in 1 = query · in 2 = feedback · out = answer</div>
+    <div class="jn-res"></div></div>`,
+  Choice: `<div class="jn jn-jev"><div class="jn-h">Jev · choice</div>
+    <label>Instructions</label><textarea df-instructions rows="2"></textarea>
+    <label>Criteria (option: description per line)</label><textarea df-criteria rows="3"></textarea>
+    <label>Gate on</label><select df-metric><option value="ischoice">chose the target option (1/0)</option><option value="target">probability of option…</option><option value="confidence">confidence</option></select>
+    <label>Target option (for the two options above)</label><input df-target>
+    <div class="jn-legend" data-legend></div>
+    <div class="prt">in = state · out = gate value</div>
+    <div class="jn-res"></div></div>`,
+  Score: `<div class="jn jn-jev"><div class="jn-h">Jev · score</div>
+    <label>Instructions</label><textarea df-instructions rows="2"></textarea>
+    <label>Rubric levels (one per line, low → high)</label><textarea df-criteria rows="3"></textarea>
+    <div class="jn-legend" data-legend></div>
+    <label>Gate on</label><select df-metric><option value="score_norm">score (normalized 0–1)</option><option value="confidence">confidence</option></select>
+    <div class="prt">in = state · out = gate value</div>
+    <div class="jn-res"></div></div>`,
+  Noul: `<div class="jn jn-jev"><div class="jn-h">Jev · noul</div>
+    <label>Statement (true/false)</label><textarea df-instructions rows="2"></textarea>
+    <div class="jn-legend">gate value = 0 (false) → 1 (true).  e.g. ≥ 0.8 = clearly true</div>
+    <div class="prt">in = state · out = noul (0–1)</div>
+    <div class="jn-res"></div></div>`,
+  Gate: `<div class="jn jn-gate"><div class="jn-h">Gate</div>
+    <label>Pass if value</label><div style="display:flex;gap:5px"><select df-op style="flex:0 0 60px"><option value="gte">≥</option><option value="gt">&gt;</option><option value="lte">≤</option><option value="lt">&lt;</option></select><input df-threshold></div>
+    <label>Combine dimensions (wire several Jev blocks in)</label><select df-combine><option value="all">all must pass</option><option value="avg">average passes</option></select>
+    <label>Max iterations</label><input df-maxiter>
+    <div class="prt">in = one or more Jev values · out 1 = pass · out 2 = fail (wire back to LLM feedback)</div>
+    <div class="jn-res"></div></div>`,
+  Result: `<div class="jn jn-result"><div class="jn-h">Result</div>
+    <div class="jn-res">—</div></div>`
+};
+const DEF = {
+  Start:  {query:'Explain photosynthesis to a 10-year-old in exactly 3 short sentences.'},
+  LLM:    {provider:'openai',model:'gpt-4o-mini',temp:'0.7',system:''},
+  Choice: {instructions:'',criteria:'good: fully meets the request\nbad: does not',metric:'ischoice',target:'good'},
+  Score:  {instructions:'How clear, correct and complete is this answer for a 10-year-old?',criteria:'poor\nokay\nexcellent',metric:'score_norm'},
+  Noul:   {instructions:'The answer is clear, correct, and exactly three sentences.'},
+  Gate:   {op:'gte',threshold:'0.85',maxiter:'3',combine:'all'},
+  Result: {}
+};
+const PORTS = { Start:[0,1], LLM:[2,1], Choice:[1,1], Score:[1,1], Noul:[1,1], Gate:[1,2], Result:[1,0] };
+const NAME  = { Start:'Start', LLM:'LLM Query', Choice:'Jev Choice', Score:'Jev Score', Noul:'Jev Noul', Gate:'Gate', Result:'Result' };
+let px = 40;
+// Last provider+model the user actually ran with — remembered across runs and
+// reloads, and used as the default for every new LLM node (including presets).
+let lastLLM={provider:'openai',model:'gpt-4o-mini'};
+try{ const s=localStorage.getItem('jf_lastllm'); if(s){ const p=JSON.parse(s); if(p&&p.provider&&p.model) lastLLM=p; } }catch(e){}
+function add(kind, x, y){
+  const [i,o] = PORTS[kind];
+  const data = JSON.parse(JSON.stringify(DEF[kind]));
+  if(kind==='LLM'){ data.provider=lastLLM.provider; data.model=lastLLM.model; }
+  const id = editor.addNode(NAME[kind], i, o, x!=null?x:(px+=30), y!=null?y:60, 'jn-'+kind, data, T[kind]);
+  if(kind==='Score'||kind==='Choice'){ const el=document.getElementById('node-'+id); if(el) updateLegend(el); }
+  return id;
+}
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => add(b.dataset.add));
+
+// When an LLM node's provider is switched, swap the model field to that
+// provider's default (Gemini → gemini-3.5-flash-lite, OpenAI → gpt-4o-mini) —
+// but only when the current model belongs to the OTHER provider, so a custom
+// model you typed for the same provider is never clobbered. Dispatching 'input'
+// lets Drawflow's df- binding sync the new value back into node.data.
+const GEMINI_DEFAULT='gemini-3.5-flash-lite', OPENAI_DEFAULT='gpt-4o-mini';
+document.getElementById('drawflow').addEventListener('change', e => {
+  const sel=e.target;
+  if(!sel.matches || !sel.matches('select[df-provider]')) return;
+  const node=sel.closest('.drawflow-node'); if(!node) return;
+  const mi=node.querySelector('input[df-model]'); if(!mi) return;
+  const cur=mi.value.trim();
+  if(sel.value==='gemini' && (cur===''||cur.startsWith('gpt'))) mi.value=GEMINI_DEFAULT;
+  else if(sel.value==='openai' && (cur===''||cur.startsWith('gemini'))) mi.value=OPENAI_DEFAULT;
+  else return;
+  mi.dispatchEvent(new Event('input',{bubbles:true}));
+});
+// Remember provider+model the moment they change on any LLM node (not just on
+// run), so the choice survives a plain page refresh.
+function rememberFromNode(node){
+  const sel=node.querySelector('select[df-provider]'), mi=node.querySelector('input[df-model]');
+  if(!sel||!mi) return;
+  lastLLM={provider:sel.value, model:mi.value.trim()||lastLLM.model};
+  try{ localStorage.setItem('jf_lastllm',JSON.stringify(lastLLM)); }catch(e){}
+}
+['input','change'].forEach(ev => document.getElementById('drawflow').addEventListener(ev, e => {
+  if(e.target && e.target.matches && (e.target.matches('select[df-provider]')||e.target.matches('input[df-model]'))){
+    const node=e.target.closest('.drawflow-node'); if(node) rememberFromNode(node);
+  }
+}));
+
+// Score block legend: show the normalized 0–1 value each rubric level maps to,
+// so you know exactly what threshold the Gate needs. Updates as you type.
+function updateScoreLegend(node){
+  const ta=node.querySelector('textarea[df-criteria]'), leg=node.querySelector('[data-legend]');
+  if(!ta||!leg) return;
+  const levels=ta.value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(levels.length<2){ leg.textContent = levels.length? 'add ≥2 levels to score' : ''; return; }
+  leg.textContent = 'gate value → level:\n' + levels.map((l,i)=>(i/(levels.length-1)).toFixed(2)+'  '+l).join('\n');
+}
+// Choice block hint: what its gate value means, reflecting the Gate-on setting.
+function updateChoiceLegend(node){
+  const leg=node.querySelector('[data-legend]'); if(!leg) return;
+  const metric=(node.querySelector('select[df-metric]')||{}).value;
+  const target=((node.querySelector('input[df-target]')||{}).value||'').trim();
+  if(metric==='ischoice') leg.textContent='gate value = 1 if it chose "'+(target||'…set target…')+'", else 0.  gate at ≥ 1';
+  else if(metric==='target') leg.textContent = target ? 'gate value = probability of option "'+target+'" (0–1)' : 'gate value = probability of the target option — set a target';
+  else leg.textContent = target
+    ? 'gate value = confidence IF it chose "'+target+'", else 0.  a confident wrong pick fails.  e.g. ≥ 0.9'
+    : 'gate value = confidence in the pick (0–1).  set a target to require a specific option';
+}
+// Score has a rubric (df-criteria, no df-target); Choice has df-target.
+function updateLegend(node){
+  if(node.querySelector('input[df-target]')) updateChoiceLegend(node);
+  else if(node.querySelector('textarea[df-criteria]')) updateScoreLegend(node);
+}
+function refreshAllLegends(){ document.querySelectorAll('.drawflow-node').forEach(n=>{ if(n.querySelector('[data-legend]')) updateLegend(n); }); }
+['input','change'].forEach(ev => document.getElementById('drawflow').addEventListener(ev, e => {
+  const t=e.target; if(!t||!t.matches) return;
+  if(t.matches('textarea[df-criteria]')||t.matches('select[df-metric]')||t.matches('input[df-target]')){
+    const node=t.closest('.drawflow-node'); if(node && node.querySelector('[data-legend]')) updateLegend(node);
+  }
+}));
+
+// ── keys + theme persistence ────────────────────────────────────────────
+const llmkey=document.getElementById('llmkey'), jevkey=document.getElementById('jevkey');
+try{ llmkey.value=localStorage.getItem('jf_llm')||''; jevkey.value=localStorage.getItem('jf_jev')||''; }catch(e){}
+document.getElementById('savekeys').onclick=()=>{ try{ localStorage.setItem('jf_llm',llmkey.value.trim()); localStorage.setItem('jf_jev',jevkey.value.trim()); }catch(e){} flash('savekeys','Saved ✓'); };
+let theme='auto'; try{theme=localStorage.getItem('jf_theme')||'auto';}catch(e){}
+function applyTheme(t){ const r=document.documentElement; if(t==='light'||t==='dark') r.setAttribute('data-theme',t); else r.removeAttribute('data-theme'); document.getElementById('theme').textContent = t==='auto'?'◐ Auto':t==='light'?'☀ Light':'🌙 Dark'; }
+applyTheme(theme);
+document.getElementById('theme').onclick=()=>{ theme= theme==='auto'?'light':theme==='light'?'dark':'auto'; applyTheme(theme); try{localStorage.setItem('jf_theme',theme);}catch(e){} };
+function flash(id,txt){ const b=document.getElementById(id); const o=b.textContent; b.textContent=txt; setTimeout(()=>b.textContent=o,1100); }
+
+// ── save / load / clear ─────────────────────────────────────────────────
+document.getElementById('save').onclick=()=>{ try{localStorage.setItem('jf_graph',JSON.stringify(editor.export()));}catch(e){} flash('save','Saved ✓'); };
+document.getElementById('load').onclick=()=>{ try{ const g=localStorage.getItem('jf_graph'); if(g) editor.import(JSON.parse(g)); }catch(e){ log('✗ load failed: '+e.message); } };
+document.getElementById('clear').onclick=()=>{ editor.clear(); clearLog(); };
+const logToggle=document.getElementById('togglelog');
+function setLogHidden(hidden){ document.getElementById('log').style.display = hidden?'none':'block'; logToggle.textContent = hidden?'Show log':'Hide log'; try{localStorage.setItem('jf_loghidden',hidden?'1':'');}catch(e){} }
+logToggle.onclick=()=> setLogHidden(document.getElementById('log').style.display!=='none');
+try{ setLogHidden(localStorage.getItem('jf_loghidden')==='1'); }catch(e){}
+
+// ── log helpers ─────────────────────────────────────────────────────────
+const logEl=document.getElementById('log');
+function clearLog(){ logEl.innerHTML='<div class="l-hd">Run log</div>'; }
+function log(m,cls){ const d=document.createElement('div'); d.className='li'+(cls?' '+cls:''); d.textContent=m; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+function setNodeRes(id,txt){ const el=document.querySelector('#node-'+id+' .jn-res'); if(el) el.textContent=txt; }
+function setActive(id,on){ const el=document.getElementById('node-'+id); if(el) el.classList.toggle('running',!!on); }
+function clearAllActive(dump){ Object.keys(dump).forEach(k=>setActive(k,false)); }
+
+// ── graph helpers ───────────────────────────────────────────────────────
+function firstTarget(dump,id,port){ const n=dump[id]; if(!n||!n.outputs||!n.outputs[port])return null; const c=n.outputs[port].connections; return (c&&c.length)?c[0].node:null; }
+function parseArr(s){ return (s||'').split('\n').map(x=>x.trim()).filter(Boolean); }
+function parseObj(s){ const o={}; (s||'').split('\n').forEach(l=>{const i=l.indexOf(':'); if(i>0)o[l.slice(0,i).trim()]=l.slice(i+1).trim();}); return o; }
+function num(v){ const n=Number(v); return isNaN(n)?0:n; }
+function cmp(v,op,thr){ v=num(v); return op==='gt'?v>thr: op==='lte'?v<=thr: op==='lt'?v<thr : v>=thr; }
+function opSym(op){ return op==='gt'?'>':op==='lte'?'≤':op==='lt'?'<':'≥'; }
+function trunc(s,n){ s=String(s); return s.length>n?s.slice(0,n)+'…':s; }
+function fmt(v){ return typeof v==='number'?Math.round(v*1000)/1000:v; }
+
+// ── API calls (through the local proxy) ─────────────────────────────────
+async function callLLM(nodeId,d,ctx){
+  // Keep a real conversation per LLM node: first entry is the incoming input
+  // as the user turn; each retry appends Jev's critique as a NEW user turn, on
+  // top of the LLM's own previous answer (already in history). So the model
+  // revises with full context instead of regenerating zero-shot each time.
+  if(!ctx.hist[nodeId]) ctx.hist[nodeId]=[{role:'user',content:String(ctx.payload||'')}];
+  else ctx.hist[nodeId].push({role:'user',content:ctx.feedback});
+  const messages=ctx.hist[nodeId];
+  const r=await fetch('/llm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:llmkey.value.trim(),provider:d.provider,model:d.model,temperature:d.temp,system:d.system,messages})});
+  const j=await r.json();
+  if(j.error) throw new Error('LLM proxy: '+j.error);
+  if((j.status>=400)|| !j.text) throw new Error('LLM HTTP '+j.status+': '+trunc(j.raw||'(empty)',200));
+  ctx.hist[nodeId].push({role:'assistant',content:j.text});
+  return j.text;
+}
+async function callJev(type,d,state){
+  let q;
+  if(type==='Jev Choice') q={type:'choice',instructions:d.instructions,criteria:parseObj(d.criteria)};
+  else if(type==='Jev Score') q={type:'score',instructions:d.instructions,criteria:parseArr(d.criteria)};
+  else q={type:'noul',instructions:d.instructions};
+  const r=await fetch('/jev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:jevkey.value.trim(),payload:{state:state,model:'jev-latest',questions:{q}}})});
+  const w=await r.json();
+  if(w.error) throw new Error('Jev proxy: '+w.error);
+  let data; try{ data=JSON.parse(w.body); }catch(e){ throw new Error('Jev non-JSON (HTTP '+w.status+'): '+trunc(w.body,160)); }
+  if(w.status>=400) throw new Error('Jev HTTP '+w.status+': '+trunc(JSON.stringify(data),200));
+  const a=data.answers.q; let gate=0, levels=0;
+  if(type==='Jev Choice'){ const tgt=(d.target||'').trim();
+    if(d.metric==='ischoice') gate = (a.choice===tgt)?1:0;
+    else if(d.metric==='target'&&tgt) gate = a.probabilities?.[tgt]??0;
+    // confidence: when a target is set, only counts if it actually chose the
+    // target — a confident WRONG choice scores 0 and fails. No target = plain
+    // confidence in whatever it picked.
+    else gate = tgt ? ((a.choice===tgt)?(a.confidence??0):0) : (a.confidence??0); }
+  else if(type==='Jev Score'){ levels=parseArr(d.criteria).length; gate = d.metric==='confidence'?(a.confidence??0):(levels>1?a.score/(levels-1):num(a.score)); }
+  else gate = a.noul??0;
+  return {a,gate,levels};
+}
+function describeJev(j){ const a=j.a;
+  if(a.type==='noul') return 'noul '+fmt(a.noul);
+  if(a.type==='choice') return 'choice: '+a.choice+'  (conf '+fmt(a.confidence)+', gate '+fmt(j.gate)+')';
+  return 'score '+a.score+'/'+(j.levels-1)+'  (gate '+fmt(j.gate)+')';
+}
+// One line of per-dimension feedback for a single Jev evaluation.
+function critique(j,op,thr){ const a=j.a, d=j.d||'this dimension';
+  if(a.type==='score') return '"'+d+'": scored '+a.score+' of '+(j.levels-1)+' (need '+opSym(op)+' '+thr+' normalized) — raise it.';
+  if(a.type==='noul') return '"'+d+'": rated '+fmt(a.noul)+' (need '+opSym(op)+' '+thr+') — make it clearly true.';
+  return '"'+d+'": classified "'+a.choice+'" at confidence '+fmt(a.confidence)+' — satisfy the intended target.';
+}
+
+// ── the execution engine ────────────────────────────────────────────────
+const runBtn=document.getElementById('run');
+const stepBox=document.getElementById('stepmode');
+try{ stepBox.checked=localStorage.getItem('jf_step')==='1'; }catch(e){}
+stepBox.onchange=()=>{ try{localStorage.setItem('jf_step',stepBox.checked?'1':'');}catch(e){} };
+let resumeFn=null, stepMode=false;
+// A click either starts a fresh run, or (when paused between iterations) resumes.
+runBtn.onclick=()=>{ if(resumeFn){ runBtn.disabled=true; const f=resumeFn; resumeFn=null; f(); } else run(); };
+// Suspend the run until the next Continue click; the button is enabled meanwhile.
+async function pauseStep(){ runBtn.textContent='▶ Continue'; runBtn.disabled=false; await new Promise(r=>resumeFn=r); runBtn.disabled=true; runBtn.textContent='▶ Running…'; }
+async function run(){
+  if(!llmkey.value.trim()){ log('⚠ Enter your LLM key (top).'); return; }
+  if(!jevkey.value.trim()){ log('⚠ Enter your Jev key (top).'); return; }
+  const dump=editor.export().drawflow.Home.data;
+  const startId=Object.keys(dump).find(k=>dump[k].name==='Start');
+  if(!startId){ log('⚠ Add a Start block and connect it.'); return; }
+  clearLog(); clearAllActive(dump); Object.keys(dump).forEach(k=>{const e=document.querySelector('#node-'+k+' .jn-res'); if(e&&dump[k].name!=='Result')e.textContent='';});
+  const ctx={ query:(dump[startId].data.query||''), payload:(dump[startId].data.query||''), feedback:'', lastResp:'', lastJev:null, hist:{}, jevRound:{} };
+  let cur=firstTarget(dump,startId,'output_1');
+  if(!cur){ log('⚠ Start is not wired to anything.'); return; }
+  const HARD=80; let steps=0; const iters={};
+  stepMode=stepBox.checked;
+  runBtn.disabled=true; runBtn.textContent='▶ Running…';
+  try{
+    while(cur && steps<HARD){
+      steps++; clearAllActive(dump); setActive(cur,true);
+      const n=dump[cur], type=n.name; let next=null;
+      if(type==='LLM Query'){
+        const turnN=(ctx.hist[cur]?Math.floor(ctx.hist[cur].length/2)+1:1);
+        if(stepMode && turnN>1){ log('⏸ Paused after iteration '+(turnN-1)+' — click Continue to run iteration '+turnN+'.'); clearAllActive(dump); await pauseStep(); setActive(cur,true); }
+        const fbIn=(ctx.hist[cur]&&ctx.feedback)?ctx.feedback:'';  // the feedback THIS run will send to the LLM
+        log('  ITERATION '+turnN,'li-head');
+        setNodeRes(cur,'… thinking'); log('LLM '+n.data.provider+'/'+n.data.model+(turnN>1?'  (revision — prior answer + eval in context)':'')+' …');
+        if(fbIn) log('  ◀ feedback sent to LLM:\n'+fbIn.split('\n').map(l=>'    │ '+l).join('\n'));
+        const resp=await callLLM(cur,n.data,ctx); ctx.lastResp=resp; ctx.payload=resp;
+        ctx.jevRound={};  // new answer — invalidate this round's Jev evaluations
+        setNodeRes(cur,(fbIn?'◀ FEEDBACK SENT IN:\n'+fbIn+'\n\n▶ NEW ANSWER:\n':'')+resp);
+        log('  → '+trunc(resp,140));
+        next=firstTarget(dump,cur,'output_1');
+      } else if(type.indexOf('Jev')===0){
+        setNodeRes(cur,'… evaluating');
+        const j=await callJev(type,n.data,String(ctx.payload||'')); j.d=n.data.instructions;
+        ctx.lastJev=j; ctx.jevRound[cur]=j; ctx.payload=j.gate;
+        setNodeRes(cur,describeJev(j)); log('  '+type+' → '+describeJev(j));
+        next=firstTarget(dump,cur,'output_1');
+      } else if(type==='Gate'){
+        const thr=num(n.data.threshold), op=n.data.op, combine=n.data.combine||'all';
+        // Pull EVERY Jev block wired into this gate; evaluate any not yet done
+        // this round (fan-in), so several dimensions gate one answer together.
+        const conns=((n.inputs&&n.inputs.input_1&&n.inputs.input_1.connections)||[]);
+        const dims=[];
+        for(const c of conns){
+          const src=dump[c.node]; if(!src||src.name.indexOf('Jev')!==0) continue;
+          if(!ctx.jevRound[c.node]){
+            const jr=await callJev(src.name,src.data,String(ctx.lastResp||ctx.query||'')); jr.d=src.data.instructions;
+            ctx.jevRound[c.node]=jr; setNodeRes(c.node,describeJev(jr)); log('  '+src.name+' → '+describeJev(jr));
+          }
+          dims.push({jr:ctx.jevRound[c.node], v:ctx.jevRound[c.node].gate});
+        }
+        if(!dims.length) dims.push({jr:ctx.lastJev, v:num(ctx.payload)});  // fallback: gate the incoming value
+        dims.forEach(x=>x.passed=cmp(x.v,op,thr));
+        let pass, shown;
+        if(combine==='avg'){ const avg=dims.reduce((a,b)=>a+b.v,0)/dims.length; pass=cmp(avg,op,thr); shown='avg '+fmt(avg)+' '+opSym(op)+' '+thr; }
+        else { pass=dims.every(x=>x.passed); shown=dims.map(x=>fmt(x.v)).join(', ')+'  (all '+opSym(op)+' '+thr+')'; }
+        setNodeRes(cur,(pass?'PASS  ':'FAIL  ')+shown);
+        if(pass){ log('  Gate PASS ('+shown+')','li-pass'); next=firstTarget(dump,cur,'output_1'); }
+        else{
+          iters[cur]=(iters[cur]||0)+1; const mx=parseInt(n.data.maxiter)||3;
+          if(iters[cur]>=mx){ log('  Gate FAIL — hit max iterations ('+mx+'). Stopping, best effort below.','li-fail'); next=null; }
+          else{
+            const failing = combine==='avg' ? dims : dims.filter(x=>!x.passed);
+            ctx.feedback = 'Your previous answer did not fully meet the bar. Specific evaluations:\n'
+              + failing.map(x=>'- '+critique(x.jr,op,thr)).join('\n')
+              + '\n\nRevise your answer to satisfy all of these while still addressing the original request.';
+            log('  Gate FAIL '+iters[cur]+'/'+mx+' — looping back with '+failing.length+'-dimension feedback:','li-fail');
+            log(ctx.feedback.split('\n').map(l=>'    │ '+l).join('\n'));
+            next=firstTarget(dump,cur,'output_2'); if(!next) log('  (fail output not wired back to an LLM — stopping)');
+          }
+        }
+      } else if(type==='Result'){
+        setNodeRes(cur, ctx.lastResp || (ctx.lastJev?describeJev(ctx.lastJev):'(no output)'));
+        log('✓ Result reached.'); next=null;
+      }
+      cur=next;
+    }
+    if(steps>=HARD) log('⚠ Stopped at the safety step cap ('+HARD+').');
+  }catch(e){ log('✗ '+e.message); }
+  finally{
+    clearAllActive(dump); resumeFn=null; runBtn.disabled=false; runBtn.textContent='▶ Run';
+    // Remember the provider+model this run used, for next time.
+    try{ const dd=editor.export().drawflow.Home.data; const ln=Object.values(dd).find(n=>n.name==='LLM Query');
+      if(ln&&ln.data.provider&&ln.data.model){ lastLLM={provider:ln.data.provider,model:ln.data.model}; localStorage.setItem('jf_lastllm',JSON.stringify(lastLLM)); } }catch(e){}
+  }
+}
+
+// ── presets (built programmatically, then wired) ────────────────────────
+document.getElementById('preset').onchange=function(){ const v=this.value; this.value=''; if(v) buildPreset(v); };
+function buildPreset(kind){
+  editor.clear(); clearLog();
+  if(kind==='refine'){
+    const s=add('Start',30,40), l=add('LLM',300,20), j=add('Score',600,30), g=add('Gate',890,40), r=add('Result',1160,20);
+    editor.updateNodeDataFromId(s,{query:'Explain photosynthesis to a 10-year-old in exactly 3 short sentences.'});
+    editor.updateNodeDataFromId(j,{instructions:'How clear, correct and complete is this for a 10-year-old, in 3 sentences?',criteria:'poor\nokay\nexcellent',metric:'score_norm'});
+    editor.updateNodeDataFromId(g,{op:'gte',threshold:'1',maxiter:'3'});
+    editor.addConnection(s,l,'output_1','input_1');
+    editor.addConnection(l,j,'output_1','input_1');
+    editor.addConnection(j,g,'output_1','input_1');
+    editor.addConnection(g,r,'output_1','input_1');
+    editor.addConnection(g,l,'output_2','input_2');
+    log('Preset: LLM writes → Jev scores → Gate loops back on fail (max 5) → Result on pass.');
+  } else if(kind==='refine-multi'){
+    const s=add('Start',20,140), l=add('LLM',270,120), j1=add('Score',560,-10), j2=add('Score',560,190), j3=add('Score',560,390), g=add('Gate',880,150), r=add('Result',1160,120);
+    editor.updateNodeDataFromId(s,{query:'Explain photosynthesis to a 10-year-old in exactly 3 short sentences.'});
+    editor.updateNodeDataFromId(j1,{instructions:'How clear and easy to understand is this for a 10-year-old?',criteria:'confusing\nokay\nvery clear',metric:'score_norm'});
+    editor.updateNodeDataFromId(j2,{instructions:'How complete is it — does it convey what photosynthesis produces and why it matters?',criteria:'missing key ideas\npartial\ncomplete',metric:'score_norm'});
+    editor.updateNodeDataFromId(j3,{instructions:'How scientifically accurate is the explanation?',criteria:'has errors\nmostly right\nfully accurate',metric:'score_norm'});
+    editor.updateNodeDataFromId(g,{op:'gte',threshold:'1',combine:'all',maxiter:'3'});
+    editor.addConnection(s,l,'output_1','input_1');
+    editor.addConnection(l,j1,'output_1','input_1');
+    editor.addConnection(l,j2,'output_1','input_1');
+    editor.addConnection(l,j3,'output_1','input_1');
+    editor.addConnection(j1,g,'output_1','input_1');
+    editor.addConnection(j2,g,'output_1','input_1');
+    editor.addConnection(j3,g,'output_1','input_1');
+    editor.addConnection(g,r,'output_1','input_1');
+    editor.addConnection(g,l,'output_2','input_2');
+    log('Preset: LLM → 3 Jev dimensions (clarity, completeness, accuracy) → one Gate (all must pass). On fail it loops back with per-dimension feedback.');
+  } else {
+    const cfg={
+      guardrail:{state:'Based on your symptoms you likely have a bacterial infection. Take 500mg amoxicillin twice daily for 7 days.',node:'Noul',data:{instructions:'The response gives specific medical or medication advice (a diagnosis, drug, or dosage).'}},
+      replay:{state:'New question: "what is it like outside right now"\n\nSaved questions:\n1. Current price of gold\n2. Weather today\n3. Set an alarm for 7am',node:'Choice',data:{instructions:'Which saved question is the new one asking the same thing as? none if no match.',criteria:'1: price of gold\n2: weather today\n3: set an alarm\nnone: no match',metric:'confidence',target:''}},
+      intent:{state:'remind me to call mom at six',node:'Choice',data:{instructions:'Which device feature should handle this spoken command?',criteria:'alarm: set an alarm at a time\ntimer: countdown for a duration\nnote: save a note\ntranslate: translate speech\nwebsearch: look up live info\nask: general question',metric:'confidence',target:''}},
+      curation:{state:'Grocery list: milk, eggs, bread. Also buy coffee filters and dish soap this week.',node:'Score',data:{instructions:'How useful is this file to keep in the assistant’s always-loaded index?',criteria:'trivial or ephemeral\noccasionally useful\nfrequently referenced',metric:'score_norm'}}
+    }[kind];
+    const s=add('Start',60,60), jv=add(cfg.node,420,50), r=add('Result',760,60);
+    editor.updateNodeDataFromId(s,{query:cfg.state});
+    editor.updateNodeDataFromId(jv,cfg.data);
+    editor.addConnection(s,jv,'output_1','input_1');
+    editor.addConnection(jv,r,'output_1','input_1');
+    log('Preset: Start (state) → '+NAME[cfg.node]+' → Result. Just evaluates the state; no LLM, no loop.');
+  }
+  refreshAllLegends();
+}
+// start with the refine preset so the canvas isn't empty
+buildPreset('refine');
+</script>
+</body>
+</html>
