@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="900" height="300" rx="14" fill="#faf9f7"/>
+  <text x="30" y="42" font-size="20" font-weight="700" fill="#1b1b1b">Jev Flow Harness</text>
+  <text x="30" y="64" font-size="13" fill="#6b6b6b">LLM writes → Jev grades → Gate loops back with feedback until it passes</text>
+
+  <g stroke="#b8b4ac" stroke-width="2.5" fill="none">
+    <line x1="150" y1="150" x2="196" y2="150"/>
+    <line x1="330" y1="150" x2="376" y2="150"/>
+    <line x1="512" y1="150" x2="558" y2="150"/>
+    <line x1="694" y1="150" x2="740" y2="150"/>
+  </g>
+  <g fill="#b8b4ac">
+    <path d="M196 150 l-10 -5 v10 z"/>
+    <path d="M376 150 l-10 -5 v10 z"/>
+    <path d="M558 150 l-10 -5 v10 z"/>
+    <path d="M740 150 l-10 -5 v10 z"/>
+  </g>
+
+  <g>
+    <rect x="30" y="118" width="120" height="64" rx="10" fill="#eef0f2" stroke="#d7dbe0"/>
+    <text x="90" y="147" font-size="13" font-weight="700" fill="#414852" text-anchor="middle">Start</text>
+    <text x="90" y="165" font-size="11" fill="#6b7280" text-anchor="middle">query</text>
+  </g>
+  <g>
+    <rect x="196" y="118" width="134" height="64" rx="10" fill="#e7eefc" stroke="#b9d0f6"/>
+    <text x="263" y="147" font-size="13" font-weight="700" fill="#1b4aa0" text-anchor="middle">LLM query</text>
+    <text x="263" y="165" font-size="11" fill="#3a6df0" text-anchor="middle">OpenAI / Gemini</text>
+  </g>
+  <g>
+    <rect x="376" y="118" width="136" height="64" rx="10" fill="#efe9fb" stroke="#cfc0f0"/>
+    <text x="444" y="147" font-size="13" font-weight="700" fill="#5b3ca8" text-anchor="middle">Jev evaluate</text>
+    <text x="444" y="165" font-size="11" fill="#7a5bd0" text-anchor="middle">choice / score / noul</text>
+  </g>
+  <g>
+    <rect x="558" y="118" width="136" height="64" rx="10" fill="#fbf0dc" stroke="#f0d59a"/>
+    <text x="626" y="147" font-size="13" font-weight="700" fill="#8a5a08" text-anchor="middle">Gate</text>
+    <text x="626" y="165" font-size="11" fill="#b07d12" text-anchor="middle">pass if ≥ threshold</text>
+  </g>
+  <g>
+    <rect x="740" y="118" width="130" height="64" rx="10" fill="#e6f4ea" stroke="#b7dcc3"/>
+    <text x="805" y="147" font-size="13" font-weight="700" fill="#1f7a44" text-anchor="middle">Result</text>
+    <text x="805" y="165" font-size="11" fill="#2a9d55" text-anchor="middle">final answer</text>
+  </g>
+
+  <g stroke="#d64545" stroke-width="2.5" fill="none">
+    <path d="M626 182 v46 q0 12 -12 12 H275 q-12 0 -12 -12 v-46"/>
+  </g>
+  <path d="M263 182 l-5 12 h10 z" fill="#d64545"/>
+  <text x="444" y="252" font-size="12" font-weight="700" fill="#d64545" text-anchor="middle">fail → per-dimension feedback (loops, default 3×)</text>
+</svg>

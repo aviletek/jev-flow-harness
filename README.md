@@ -1,3 +1,5 @@
+![Jev Flow Harness](flow.svg)
+
 # Jev Flow Harness
 
 A standalone local tool to prototype TypeSafe's **Jev** model for the watch — a
