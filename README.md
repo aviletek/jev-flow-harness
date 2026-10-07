@@ -24,6 +24,35 @@ Then open http://localhost:7878, paste your two keys (LLM + Jev) up top, click
 **Save keys**, pick a preset, and hit **Run**. Zero npm dependencies (Node's
 built-in `http`/`https`/`fs` only).
 
+### Jev provider: TypeSafe (cloud) or Laya (local)
+
+The **Jev** dropdown next to the key field switches which evaluator answers
+the Jev choice/score/noul blocks:
+
+- **TypeSafe (cloud)** — the default; needs your `tsk_...` key as before.
+- **Laya (local, no key)** — runs the [`laya`](https://huggingface.co/convaiinnovations/laya)
+  Python model on your machine instead. Same question types (choice/score/noul)
+  and same answer shape (probabilities/confidence/legend), so the rest of the
+  harness (gates, critiques, presets) works unchanged.
+
+  Laya needs its own small local server, started separately:
+
+  ```bash
+  python laya_server.py
+  ```
+
+  First run downloads model weights from Hugging Face (one-time, needs
+  internet); after that it's fully offline, CPU-only if you have no CUDA GPU.
+  It listens on `http://127.0.0.1:7879`, which `server.js` forwards to when
+  the Jev dropdown is set to Laya — no API key needed, and the key field
+  hides itself. Requires `pip install laya` (pulls in `torch`, `transformers`,
+  `huggingface_hub`, `safetensors`).
+
+  Note: this only swaps the evaluator used **in this desktop harness** for
+  prototyping. It doesn't run on the ESP32 either — same as the TypeSafe
+  cloud call, Laya is a server-side stand-in while you design prompts before
+  writing firmware.
+
 ## The blocks
 
 Drag from the **Add** row; connect an output dot to an input dot to wire them.

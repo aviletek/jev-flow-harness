@@ -16,6 +16,7 @@ const fs    = require('fs');
 const path  = require('path');
 
 const PORT = 7878;
+const LAYA_PORT = 7879; // local Python shim — see laya_server.py
 const HTML_PATH = path.join(__dirname, 'index.html');
 
 function send(res, code, obj) {
@@ -47,6 +48,19 @@ function proxy(opts, body, res, onDone) {
   preq.end();
 }
 
+// Same shape as proxy() but plain HTTP, for the local Laya shim.
+function proxyLocal(opts, body, res, onDone) {
+  const t0 = Date.now();
+  const preq = http.request(opts, pres => {
+    let data = '';
+    pres.on('data', d => data += d);
+    pres.on('end', () => onDone(data, pres.statusCode, Date.now() - t0));
+  });
+  preq.on('error', e => send(res, 200, { status: 0, error: 'Laya shim unreachable at 127.0.0.1:' + LAYA_PORT + ' — run `python laya_server.py` first (see README). ' + String(e && e.message || e) }));
+  preq.write(body);
+  preq.end();
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -54,12 +68,23 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Jev (TypeSafe) ──────────────────────────────────────────────────────
+  // ── Jev (TypeSafe cloud, or local Laya shim) ────────────────────────────
   if (req.method === 'POST' && req.url === '/jev') {
     readBody(req, res, j => {
-      if (!j.apiKey)  return send(res, 400, { error: 'missing Jev API key' });
       if (!j.payload) return send(res, 400, { error: 'missing payload' });
       const body = JSON.stringify(j.payload);
+
+      if (j.provider === 'laya') {
+        // Local, no API key: same {state, questions} shape, forwarded to the
+        // Python shim (laya_server.py) which returns Jev's own answers/... shape.
+        proxyLocal({
+          method: 'POST', hostname: '127.0.0.1', port: LAYA_PORT, path: '/systemone',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        }, body, res, (data, status, ms) => send(res, 200, { status, ms, body: data }));
+        return;
+      }
+
+      if (!j.apiKey) return send(res, 400, { error: 'missing Jev API key' });
       proxy({
         method: 'POST', hostname: 'api.typesafe.ai', path: '/v1/systemone',
         headers: { 'Authorization': 'Bearer ' + j.apiKey, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },

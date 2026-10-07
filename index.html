@@ -80,7 +80,8 @@
   <h1>Jev flow harness <span class="hint" style="font-weight:400">— drag blocks, wire LLM → Jev, gate on a threshold, loop until it passes. Local only; no firmware.</span></h1>
   <div class="row">
     <label class="k">LLM key</label><input class="key" id="llmkey" type="password" placeholder="OpenAI or Gemini key" autocomplete="off" spellcheck="false">
-    <label class="k">Jev key</label><input class="key" id="jevkey" type="password" placeholder="TypeSafe key (tsk_...)" autocomplete="off" spellcheck="false">
+    <label class="k">Jev</label><select class="sel" id="jevprovider"><option value="typesafe">TypeSafe (cloud)</option><option value="laya">Laya (local, no key)</option></select>
+    <label class="k" id="jevkeylabel">Jev key</label><input class="key" id="jevkey" type="password" placeholder="TypeSafe key (tsk_...)" autocomplete="off" spellcheck="false">
     <button class="b" id="savekeys">Save keys</button>
     <button class="b" id="theme">◐ Theme</button>
   </div>
@@ -205,6 +206,7 @@ function add(kind, x, y){
   if(kind==='LLM'){ data.provider=lastLLM.provider; data.model=lastLLM.model; }
   const id = editor.addNode(NAME[kind], i, o, x!=null?x:(px+=30), y!=null?y:60, 'jn-'+kind, data, T[kind]);
   if(kind==='Score'||kind==='Choice'){ const el=document.getElementById('node-'+id); if(el) updateLegend(el); }
+  if(JEV_SUFFIX[kind]) applyJevLabel();
   return id;
 }
 document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => add(b.dataset.add));
@@ -274,9 +276,25 @@ function refreshAllLegends(){ document.querySelectorAll('.drawflow-node').forEac
 }));
 
 // ── keys + theme persistence ────────────────────────────────────────────
-const llmkey=document.getElementById('llmkey'), jevkey=document.getElementById('jevkey');
-try{ llmkey.value=localStorage.getItem('jf_llm')||''; jevkey.value=localStorage.getItem('jf_jev')||''; }catch(e){}
-document.getElementById('savekeys').onclick=()=>{ try{ localStorage.setItem('jf_llm',llmkey.value.trim()); localStorage.setItem('jf_jev',jevkey.value.trim()); }catch(e){} flash('savekeys','Saved ✓'); };
+const llmkey=document.getElementById('llmkey'), jevkey=document.getElementById('jevkey'), jevprovider=document.getElementById('jevprovider'), jevkeylabel=document.getElementById('jevkeylabel');
+try{ llmkey.value=localStorage.getItem('jf_llm')||''; jevkey.value=localStorage.getItem('jf_jev')||''; jevprovider.value=localStorage.getItem('jf_jevprovider')||'typesafe'; }catch(e){}
+function syncJevProvider(){ const local=jevprovider.value==='laya'; jevkey.style.display=local?'none':''; jevkeylabel.style.display=local?'none':''; }
+// Relabel the evaluator Add pills + placed card headers + run-log text
+// "Jev"↔"Laya" to match the selected provider. Internal node names/types
+// stay "Jev ..." (used for routing logic elsewhere) — only visible text changes.
+const JEV_SUFFIX={Choice:'choice',Score:'score',Noul:'noul'};
+function jevWord(){ return jevprovider.value==='laya'?'Laya':'Jev'; }
+function jevDisplay(name){ return String(name||'').replace(/^Jev\b/, jevWord()); }
+function applyJevLabel(){
+  const label=jevWord();
+  Object.keys(JEV_SUFFIX).forEach(kind=>{
+    const btn=document.querySelector('button.add[data-add="'+kind+'"]'); if(btn) btn.textContent=label+' '+JEV_SUFFIX[kind];
+    document.querySelectorAll('.jn-'+kind+' .jn-h').forEach(h=>{ h.textContent=label+' · '+JEV_SUFFIX[kind]; });
+  });
+}
+syncJevProvider(); applyJevLabel();
+jevprovider.onchange=()=>{ try{localStorage.setItem('jf_jevprovider',jevprovider.value);}catch(e){} syncJevProvider(); applyJevLabel(); };
+document.getElementById('savekeys').onclick=()=>{ try{ localStorage.setItem('jf_llm',llmkey.value.trim()); localStorage.setItem('jf_jev',jevkey.value.trim()); localStorage.setItem('jf_jevprovider',jevprovider.value); }catch(e){} flash('savekeys','Saved ✓'); };
 let theme='auto'; try{theme=localStorage.getItem('jf_theme')||'auto';}catch(e){}
 function applyTheme(t){ const r=document.documentElement; if(t==='light'||t==='dark') r.setAttribute('data-theme',t); else r.removeAttribute('data-theme'); document.getElementById('theme').textContent = t==='auto'?'◐ Auto':t==='light'?'☀ Light':'🌙 Dark'; }
 applyTheme(theme);
@@ -285,7 +303,7 @@ function flash(id,txt){ const b=document.getElementById(id); const o=b.textConte
 
 // ── save / load / clear ─────────────────────────────────────────────────
 document.getElementById('save').onclick=()=>{ try{localStorage.setItem('jf_graph',JSON.stringify(editor.export()));}catch(e){} flash('save','Saved ✓'); };
-document.getElementById('load').onclick=()=>{ try{ const g=localStorage.getItem('jf_graph'); if(g) editor.import(JSON.parse(g)); }catch(e){ log('✗ load failed: '+e.message); } };
+document.getElementById('load').onclick=()=>{ try{ const g=localStorage.getItem('jf_graph'); if(g){ editor.import(JSON.parse(g)); applyJevLabel(); } }catch(e){ log('✗ load failed: '+e.message); } };
 document.getElementById('clear').onclick=()=>{ editor.clear(); clearLog(); };
 const logToggle=document.getElementById('togglelog');
 function setLogHidden(hidden){ document.getElementById('log').style.display = hidden?'none':'block'; logToggle.textContent = hidden?'Show log':'Hide log'; try{localStorage.setItem('jf_loghidden',hidden?'1':'');}catch(e){} }
@@ -331,11 +349,12 @@ async function callJev(type,d,state){
   if(type==='Jev Choice') q={type:'choice',instructions:d.instructions,criteria:parseObj(d.criteria)};
   else if(type==='Jev Score') q={type:'score',instructions:d.instructions,criteria:parseArr(d.criteria)};
   else q={type:'noul',instructions:d.instructions};
-  const r=await fetch('/jev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:jevkey.value.trim(),payload:{state:state,model:'jev-latest',questions:{q}}})});
+  const provider=jevprovider.value, pv=provider==='laya'?'Laya':'Jev';
+  const r=await fetch('/jev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:provider,apiKey:jevkey.value.trim(),payload:{state:state,model:'jev-latest',questions:{q}}})});
   const w=await r.json();
-  if(w.error) throw new Error('Jev proxy: '+w.error);
-  let data; try{ data=JSON.parse(w.body); }catch(e){ throw new Error('Jev non-JSON (HTTP '+w.status+'): '+trunc(w.body,160)); }
-  if(w.status>=400) throw new Error('Jev HTTP '+w.status+': '+trunc(JSON.stringify(data),200));
+  if(w.error) throw new Error(pv+' proxy: '+w.error);
+  let data; try{ data=JSON.parse(w.body); }catch(e){ throw new Error(pv+' non-JSON (HTTP '+w.status+'): '+trunc(w.body,160)); }
+  if(w.status>=400) throw new Error(pv+' HTTP '+w.status+': '+trunc(JSON.stringify(data),200));
   const a=data.answers.q; let gate=0, levels=0;
   if(type==='Jev Choice'){ const tgt=(d.target||'').trim();
     if(d.metric==='ischoice') gate = (a.choice===tgt)?1:0;
@@ -348,10 +367,24 @@ async function callJev(type,d,state){
   else gate = a.noul??0;
   return {a,gate,levels};
 }
+// How close (in raw index units) a score has to sit to the exact midpoint
+// between two adjacent rubric levels before we call it a tie instead of
+// picking the nearer one — e.g. with 6 levels, gate 0.50 is dead center
+// between "4 years" and "6 years" → inconclusive; gate 0.58 clearly leans
+// to "6 years" → picked.
+const SCORE_TIE_BAND = 0.1;
+function nearestLevelLabel(a, levels){
+  if(levels<2 || !a.legend) return '';
+  const raw=num(a.score), frac=raw-Math.floor(raw);
+  if(Math.abs(frac-0.5)<SCORE_TIE_BAND) return 'unknown / inconclusive';
+  const idx=Math.round(raw);
+  return a.legend[String(idx)] || '';
+}
 function describeJev(j){ const a=j.a;
   if(a.type==='noul') return 'noul '+fmt(a.noul);
   if(a.type==='choice') return 'choice: '+a.choice+'  (conf '+fmt(a.confidence)+', gate '+fmt(j.gate)+')';
-  return 'score '+a.score+'/'+(j.levels-1)+'  (gate '+fmt(j.gate)+')';
+  const label=nearestLevelLabel(a,j.levels);
+  return 'score '+a.score+'/'+(j.levels-1)+'  (gate '+fmt(j.gate)+')'+(label?'  → '+label:'');
 }
 // One line of per-dimension feedback for a single Jev evaluation.
 function critique(j,op,thr){ const a=j.a, d=j.d||'this dimension';
@@ -371,9 +404,10 @@ runBtn.onclick=()=>{ if(resumeFn){ runBtn.disabled=true; const f=resumeFn; resum
 // Suspend the run until the next Continue click; the button is enabled meanwhile.
 async function pauseStep(){ runBtn.textContent='▶ Continue'; runBtn.disabled=false; await new Promise(r=>resumeFn=r); runBtn.disabled=true; runBtn.textContent='▶ Running…'; }
 async function run(){
-  if(!llmkey.value.trim()){ log('⚠ Enter your LLM key (top).'); return; }
-  if(!jevkey.value.trim()){ log('⚠ Enter your Jev key (top).'); return; }
   const dump=editor.export().drawflow.Home.data;
+  const names=Object.values(dump).map(n=>n.name);
+  if(names.includes('LLM Query') && !llmkey.value.trim()){ log('⚠ Enter your LLM key (top).'); return; }
+  if(names.some(n=>n.indexOf('Jev')===0) && jevprovider.value!=='laya' && !jevkey.value.trim()){ log('⚠ Enter your Jev key (top).'); return; }
   const startId=Object.keys(dump).find(k=>dump[k].name==='Start');
   if(!startId){ log('⚠ Add a Start block and connect it.'); return; }
   clearLog(); clearAllActive(dump); Object.keys(dump).forEach(k=>{const e=document.querySelector('#node-'+k+' .jn-res'); if(e&&dump[k].name!=='Result')e.textContent='';});
@@ -403,7 +437,7 @@ async function run(){
         setNodeRes(cur,'… evaluating');
         const j=await callJev(type,n.data,String(ctx.payload||'')); j.d=n.data.instructions;
         ctx.lastJev=j; ctx.jevRound[cur]=j; ctx.payload=j.gate;
-        setNodeRes(cur,describeJev(j)); log('  '+type+' → '+describeJev(j));
+        setNodeRes(cur,describeJev(j)); log('  '+jevDisplay(type)+' → '+describeJev(j));
         next=firstTarget(dump,cur,'output_1');
       } else if(type==='Gate'){
         const thr=num(n.data.threshold), op=n.data.op, combine=n.data.combine||'all';
@@ -415,7 +449,7 @@ async function run(){
           const src=dump[c.node]; if(!src||src.name.indexOf('Jev')!==0) continue;
           if(!ctx.jevRound[c.node]){
             const jr=await callJev(src.name,src.data,String(ctx.lastResp||ctx.query||'')); jr.d=src.data.instructions;
-            ctx.jevRound[c.node]=jr; setNodeRes(c.node,describeJev(jr)); log('  '+src.name+' → '+describeJev(jr));
+            ctx.jevRound[c.node]=jr; setNodeRes(c.node,describeJev(jr)); log('  '+jevDisplay(src.name)+' → '+describeJev(jr));
           }
           dims.push({jr:ctx.jevRound[c.node], v:ctx.jevRound[c.node].gate});
         }
@@ -469,7 +503,7 @@ function buildPreset(kind){
     editor.addConnection(j,g,'output_1','input_1');
     editor.addConnection(g,r,'output_1','input_1');
     editor.addConnection(g,l,'output_2','input_2');
-    log('Preset: LLM writes → Jev scores → Gate loops back on fail (max 5) → Result on pass.');
+    log('Preset: LLM writes → '+jevWord()+' scores → Gate loops back on fail (max 5) → Result on pass.');
   } else if(kind==='refine-multi'){
     const s=add('Start',20,140), l=add('LLM',270,120), j1=add('Score',560,-10), j2=add('Score',560,190), j3=add('Score',560,390), g=add('Gate',880,150), r=add('Result',1160,120);
     editor.updateNodeDataFromId(s,{query:'Explain photosynthesis to a 10-year-old in exactly 3 short sentences.'});
@@ -486,7 +520,7 @@ function buildPreset(kind){
     editor.addConnection(j3,g,'output_1','input_1');
     editor.addConnection(g,r,'output_1','input_1');
     editor.addConnection(g,l,'output_2','input_2');
-    log('Preset: LLM → 3 Jev dimensions (clarity, completeness, accuracy) → one Gate (all must pass). On fail it loops back with per-dimension feedback.');
+    log('Preset: LLM → 3 '+jevWord()+' dimensions (clarity, completeness, accuracy) → one Gate (all must pass). On fail it loops back with per-dimension feedback.');
   } else {
     const cfg={
       guardrail:{state:'Based on your symptoms you likely have a bacterial infection. Take 500mg amoxicillin twice daily for 7 days.',node:'Noul',data:{instructions:'The response gives specific medical or medication advice (a diagnosis, drug, or dosage).'}},
@@ -499,7 +533,7 @@ function buildPreset(kind){
     editor.updateNodeDataFromId(jv,cfg.data);
     editor.addConnection(s,jv,'output_1','input_1');
     editor.addConnection(jv,r,'output_1','input_1');
-    log('Preset: Start (state) → '+NAME[cfg.node]+' → Result. Just evaluates the state; no LLM, no loop.');
+    log('Preset: Start (state) → '+jevDisplay(NAME[cfg.node])+' → Result. Just evaluates the state; no LLM, no loop.');
   }
   refreshAllLegends();
 }
