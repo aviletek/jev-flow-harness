@@ -2,7 +2,7 @@
 
 # Jev Flow Harness
 
-A standalone local tool to prototype TypeSafe's **Jev** model for the watch — a
+A standalone local tool to prototype TypeSafe's **Jev** model with LLM recursive loop — a
 drag-and-drop **node editor** where you wire an LLM to Jev evaluators, gate on a
 threshold, and loop until the answer passes. **Touches no firmware.**
 
